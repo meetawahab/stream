@@ -16,11 +16,11 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 		$this->connector_blogs = new Connector_Blogs;
 		$this->assertNotEmpty( $this->connector_blogs );
 	}
-	
+
 	/**
 	 * Test for get_context_labels().
 	 *
-	 * @group ms-required 
+	 * @group ms-required
 	 */
 	public function test_get_context_labels() {
 		if ( ! is_multisite() ) {
