@@ -64,8 +64,7 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 		$this->assertArrayHasKey( 'blog-' . $id, $labels );
 	}
 
-	public function test_callback_wp_insert_site() {
-		global $current_site, $base;
+	public function test_callback_wp_initialize_site() {
 		// Expected log calls.
 		$this->mock->expects( $this->once() )
 			->method( 'log' )
@@ -87,10 +86,45 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 		self::factory()->blog->create( array( 'title'  => 'testsite' ) );
 
 		// Check callback test action.
-		$this->assertGreaterThan( 0, did_action( $this->action_prefix . 'callback_wp_insert_site' ) );
+		$this->assertGreaterThan( 0, did_action( $this->action_prefix . 'callback_wp_initialize_site' ) );
+	}
+
+	public function test_callback_wp_delete_site() {
+		global $wpdb;
+
+		// Create site for later use.
+		$blog_id = self::factory()->blog->create( array( 'title'  => 'testsite' ) );
+
+		// Temporary tables will trigger DB errors when we attempt to reference them as new temporary tables.
+		$suppress = $wpdb->suppress_errors();
+
+		// Expected log calls.
+		$this->mock->expects( $this->once() )
+			->method( 'log' )
+			->with(
+				$this->equalTo(
+					_x(
+						'"%s" site was deleted',
+						'1. Site name',
+						'stream'
+					)
+				),
+				$this->equalTo( array( 'site_name' => 'testsite' ) ),
+				$this->greaterThan( 0 ),
+				$this->equalTo( 'testsite' ),
+				$this->equalTo( 'deleted' )
+			);
+
+		// Delete blog to trigger callback.
+		\wp_delete_site( $blog_id );
+		$wpdb->suppress_errors( $suppress );
+
+		// Check callback test action.
+		$this->assertGreaterThan( 0, did_action( $this->action_prefix . 'callback_wp_delete_site' ) );
 	}
 
 	public function test_callback_wpmu_activate_blog() {
+		// Create site for later use.
 		$blog_id = self::factory()->blog->create( array( 'title'  => 'testsite' ) );
 
 		// Expected log calls.
@@ -321,12 +355,12 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 					$this->equalTo(
 						array(
 							'site_name' => 'testsite',
-							'status'    => esc_html__( 'deleted', 'stream' ),
+							'status'    => esc_html__( 'trashed', 'stream' ),
 						)
 					),
 					$this->equalTo( $blog_id ),
 					$this->equalTo( 'testsite' ),
-					$this->equalTo( 'deleted' )
+					$this->equalTo( 'trashed' )
 				),
 				array(
 					$this->equalTo(
@@ -344,7 +378,7 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 					),
 					$this->equalTo( $blog_id ),
 					$this->equalTo( 'testsite' ),
-					$this->equalTo( 'updated' )
+					$this->equalTo( 'restored' )
 				),
 				array(
 					$this->equalTo(
@@ -393,13 +427,8 @@ class Test_WP_Stream_Connector_Blogs extends WP_StreamTestCase {
 			'public'   => '1',
 		);
 		foreach( $fields as $field => $value ) {
-			$old_site     = (object) $site->to_array();
-			$site->$field = $value;
-			wp_maybe_transition_site_statuses_on_update( $site, $old_site );
-
-			$old_site     = (object) $site->to_array();
-			$site->$field = absint( $value ) ? '0' : '1';
-			wp_maybe_transition_site_statuses_on_update( $site, $old_site );
+			wp_update_site( $blog_id, array( $field => $value ) );
+			wp_update_site( $blog_id, array( $field => absint( $value ) ? '0' : '1' ) );
 		}
 
 		// Check callback test action.
